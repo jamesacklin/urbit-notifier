@@ -12,6 +12,10 @@ cp config.yml ./target/release
 ./target/release/urbit-notifier
 ```
 
+## Demo
+
+![email](https://user-images.githubusercontent.com/748181/223562392-379439ed-53e6-42c8-a386-987b201559aa.gif)
+
 ## TODO
 
 - [ ] Eliminate the `config.yml` step and accept command-line arguments
