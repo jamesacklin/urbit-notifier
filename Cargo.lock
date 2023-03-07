@@ -1652,6 +1652,7 @@ name = "urbit-notifier"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "serde_yaml",
  "tokio 1.26.0",
  "urbit-http-api",
