@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml::{self};
+use std::error::Error;
 use std::time::Duration;
 use tokio::sync::mpsc::{self};
 use urbit_http_api::ShipInterface;
@@ -11,13 +12,13 @@ struct Config {
     ship_name: String,
     ship_code: String,
     desk: String,
+    webhook: String,
 }
 
 #[derive(Clone, serde::Serialize)]
 struct Payload {
     message: String,
     url: String,
-    msg_id: String,
     msg_desk: String,
 }
 
@@ -59,8 +60,10 @@ async fn main() {
     // Listen for hark updates
     let mut interval = tokio::time::interval(Duration::from_secs(2));
     let mut count = 0;
-    println!("Listening to hark, press Ctrl-C to exit.");
-    println!("========================================");
+    println!(
+        "Listening to hark events for {}, press Ctrl-C to exit.",
+        ship_config.desk
+    );
     loop {
         tokio::select! {
             _ = interval.tick() => {
@@ -74,7 +77,6 @@ async fn main() {
                         let v: Value = serde_json::from_str(&notifications[count - 1]).unwrap();
                         let mut message = String::new();
                         let mut url = String::new();
-                        let mut msg_id = String::new();
                         let mut msg_desk = String::new();
                         if let Value::Object(v) = v {
                             if let Some(Value::Object(add_yarn)) = v.get("add-yarn") {
@@ -84,6 +86,7 @@ async fn main() {
                                             if String::from(&ship_config.desk).ne(desk) {
                                                 return();
                                             }
+                                            url += &ship_config.ship_url;
                                             url.push_str("/apps/");
                                             url += &desk;
                                             msg_desk += &desk;
@@ -91,9 +94,6 @@ async fn main() {
                                         if let Some(Value::String(thread)) = rope.get("thread") {
                                             url += &thread;
                                         }
-                                    }
-                                    if let Some(Value::String(id)) = yarn.get("id") {
-                                        msg_id += &id;
                                     }
                                     if let Some(Value::Array(con)) = yarn.get("con") {
                                         for c in con {
@@ -109,14 +109,22 @@ async fn main() {
                                                 _ => (),
                                             }
                                         }
+                                        // Print the message
                                         println!("{}", message);
+                                        // Send the message to the webhook
+                                        let _post = tokio::task::block_in_place(|| {
+                                            publish_webhook(&ship_config.webhook, Payload {
+                                                message: message,
+                                                url: url,
+                                                msg_desk: msg_desk,
+                                            })
+                                        });
                                     }
                                 }
                             }
                         }
                     }
                 });
-                println!("Listening...");
             }
             _ = exit_rx.recv() => {
                 // Close the channel
@@ -129,4 +137,12 @@ async fn main() {
             }
         }
     }
+}
+
+fn publish_webhook(webhook: &std::string::String, body: Payload) -> Result<(), Box<dyn Error>> {
+    // Send a blocking request to the webhook
+    let client = reqwest::blocking::Client::new();
+    let res = client.post(webhook).json(&body).send();
+    println!("{:#?}", res);
+    Ok(())
 }
