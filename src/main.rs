@@ -10,6 +10,7 @@ struct Config {
     ship_url: String,
     ship_name: String,
     ship_code: String,
+    desk: String,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -25,11 +26,13 @@ async fn main() {
     // Clear the screen
     std::process::Command::new("clear").status().unwrap();
 
+    // Load the config file
+    let config_file = "config.yml";
+    let f = std::fs::File::open(config_file).expect("Could not open ship config.");
+    let ship_config: Config = serde_yaml::from_reader(f).expect("Could not read ship config.");
+
     // Create a new channel
     let mut channel = tokio::task::block_in_place(|| {
-        let config_file = "config.yml";
-        let f = std::fs::File::open(config_file).expect("Could not open ship config.");
-        let ship_config: Config = serde_yaml::from_reader(f).expect("Could not read ship config.");
         let ship_interface =
             ShipInterface::new(&ship_config.ship_url, &ship_config.ship_code).unwrap();
         println!(
@@ -75,10 +78,12 @@ async fn main() {
                         let mut msg_desk = String::new();
                         if let Value::Object(v) = v {
                             if let Some(Value::Object(add_yarn)) = v.get("add-yarn") {
-                                // println!("{:#?}", add_yarn);
                                 if let Some(Value::Object(yarn)) = add_yarn.get("yarn") {
                                     if let Some(Value::Object(rope)) = yarn.get("rope") {
                                         if let Some(Value::String(desk)) = rope.get("desk") {
+                                            if String::from(&ship_config.desk).ne(desk) {
+                                                return();
+                                            }
                                             url.push_str("/apps/");
                                             url += &desk;
                                             msg_desk += &desk;
