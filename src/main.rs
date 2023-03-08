@@ -76,18 +76,16 @@ async fn main() {
                         let mut new_messages: Vec<Payload> = Vec::new();
                         for n in last_notifications {
                             let v: Value = serde_json::from_str(n).unwrap();
-
                             let mut message = String::new();
                             let mut url = String::new();
                             let mut msg_desk = String::new();
-
                             if let Value::Object(v) = v {
                                 if let Some(Value::Object(add_yarn)) = v.get("add-yarn") {
                                     if let Some(Value::Object(yarn)) = add_yarn.get("yarn") {
                                         if let Some(Value::Object(rope)) = yarn.get("rope") {
                                             if let Some(Value::String(desk)) = rope.get("desk") {
                                                 if String::from(&config.desk).ne(desk) {
-                                                    return();
+                                                    continue;
                                                 }
                                                 url += &config.ship_url;
                                                 url.push_str("/apps/");
@@ -124,9 +122,11 @@ async fn main() {
                             }
                         }
                         // Send the message to the webhook
-                        let _post = tokio::task::block_in_place(|| {
-                            publish_webhook(&config.webhook, new_messages)
-                        });
+                        if new_messages.len() > 0 {
+                            let _post = tokio::task::block_in_place(|| {
+                                publish_webhook(&config.webhook, new_messages)
+                            });
+                        }
                     }
                 });
             }
@@ -147,10 +147,8 @@ fn publish_webhook(
     webhook: &std::string::String,
     body: Vec<Payload>,
 ) -> Result<(), Box<dyn Error>> {
-    let json = serde_json::to_string(&body)?;
-    println!("{}", json);
-
-    // Send a blocking request to the webhook
+    // let json = serde_json::to_string(&body)?;
+    // println!("{}", json);
     let client = reqwest::blocking::Client::new();
     let res = client.post(webhook).json(&body).send();
     println!("{:#?}", res);

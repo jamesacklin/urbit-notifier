@@ -56,6 +56,7 @@ Demonstrating watching %hark events from the `talk` desk and publishing to a Zap
 
 ## TODO
 
+- [ ] Gracefully handle a non-connection to a ship and derive ship name from login page
+- [x] Harden desk-filtering logic (shouldn't add to the batch if it's not the right desk)
 - [x] Eliminate the `config.yml` step and accept command-line arguments
 - [x] Allow a user-set polling interval; currently hard-coded to 2s
-- [ ] Gracefully handle a non-connection to a ship and derive ship name from login page
