@@ -14,6 +14,8 @@ cp config.yml ./target/release
 
 ## Demo
 
+Demonstrating watching %hark events from the `talk` desk and publishing to a Zapier webhook, which sends an email. 
+
 ![email](https://user-images.githubusercontent.com/748181/223562392-379439ed-53e6-42c8-a386-987b201559aa.gif)
 
 ## TODO
