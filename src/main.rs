@@ -16,10 +16,15 @@ struct Config {
 }
 
 #[derive(Clone, serde::Serialize, Debug)]
-struct Payload {
+struct Notification {
     message: String,
     url: String,
     msg_desk: String,
+}
+
+#[derive(Clone, serde::Serialize, Debug)]
+struct Payload {
+    messages: Vec<Notification>,
 }
 
 #[tokio::main]
@@ -73,7 +78,9 @@ async fn main() {
                     if prev_count != count {
                         let from_count = count - prev_count;
                         let last_notifications = notifications.iter().rev().take(from_count).collect::<Vec<&String>>();
-                        let mut new_messages: Vec<Payload> = Vec::new();
+                        let mut payload = Payload {
+                            messages: Vec::new(),
+                        };
                         for n in last_notifications {
                             let v: Value = serde_json::from_str(n).unwrap();
                             let mut message = String::new();
@@ -110,8 +117,7 @@ async fn main() {
                                                     _ => (),
                                                 }
                                             }
-                                            // Print the message
-                                            new_messages.push(Payload {
+                                            payload.messages.push(Notification {
                                                 message: message,
                                                 url: url,
                                                 msg_desk: msg_desk,
@@ -122,9 +128,9 @@ async fn main() {
                             }
                         }
                         // Send the message to the webhook
-                        if new_messages.len() > 0 {
+                        if payload.messages.len() > 0 {
                             let _post = tokio::task::block_in_place(|| {
-                                publish_webhook(&config.webhook, new_messages)
+                                publish_webhook(&config.webhook, payload)
                             });
                         }
                     }
@@ -143,12 +149,9 @@ async fn main() {
     }
 }
 
-fn publish_webhook(
-    webhook: &std::string::String,
-    body: Vec<Payload>,
-) -> Result<(), Box<dyn Error>> {
-    // let json = serde_json::to_string(&body)?;
-    // println!("{}", json);
+fn publish_webhook(webhook: &std::string::String, body: Payload) -> Result<(), Box<dyn Error>> {
+    let json = serde_json::to_string(&body)?;
+    println!("{}", json);
     let client = reqwest::blocking::Client::new();
     let res = client.post(webhook).json(&body).send();
     println!("{:#?}", res);
