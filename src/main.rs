@@ -1,12 +1,11 @@
-use serde::{Deserialize, Serialize};
+use clap::Parser;
 use serde_json::Value;
-use serde_yaml::{self};
 use std::error::Error;
 use std::time::Duration;
 use tokio::sync::mpsc::{self};
 use urbit_http_api::ShipInterface;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Parser)]
 struct Config {
     ship_url: String,
     ship_name: String,
@@ -27,17 +26,15 @@ async fn main() {
     // Clear the screen
     std::process::Command::new("clear").status().unwrap();
 
-    // Load the config file
-    let config_file = "config.yml";
-    let f = std::fs::File::open(config_file).expect("Could not open ship config.");
-    let ship_config: Config = serde_yaml::from_reader(f).expect("Could not read ship config.");
+    // Parse the command line arguments
+    let ship_config = Config::parse();
 
     // Create a new channel
     let mut channel = tokio::task::block_in_place(|| {
         let ship_interface =
             ShipInterface::new(&ship_config.ship_url, &ship_config.ship_code).unwrap();
         println!(
-            "Connected to {} at {}",
+            "Connected to ~{} at {}",
             ship_config.ship_name, ship_config.ship_url
         );
         let channel = ship_interface.create_channel().unwrap();
