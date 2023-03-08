@@ -12,9 +12,10 @@ struct Config {
     ship_code: String,
     desk: String,
     webhook: String,
+    interval: Option<u64>,
 }
 
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, Debug)]
 struct Payload {
     message: String,
     url: String,
@@ -27,16 +28,12 @@ async fn main() {
     std::process::Command::new("clear").status().unwrap();
 
     // Parse the command line arguments
-    let ship_config = Config::parse();
+    let config = Config::parse();
 
     // Create a new channel
     let mut channel = tokio::task::block_in_place(|| {
-        let ship_interface =
-            ShipInterface::new(&ship_config.ship_url, &ship_config.ship_code).unwrap();
-        println!(
-            "Connected to ~{} at {}",
-            ship_config.ship_name, ship_config.ship_url
-        );
+        let ship_interface = ShipInterface::new(&config.ship_url, &config.ship_code).unwrap();
+        println!("Connected to ~{} at {}", config.ship_name, config.ship_url);
         let channel = ship_interface.create_channel().unwrap();
         channel
     });
@@ -54,12 +51,15 @@ async fn main() {
         let _ = exit_tx.send(()).await;
     });
 
+    // if config.interval exists, set the interval to that value, otherwise set it to 2 seconds
+    let mut interval = tokio::time::interval(Duration::from_secs(config.interval.unwrap_or(2)));
+
     // Listen for hark updates
-    let mut interval = tokio::time::interval(Duration::from_secs(2));
     let mut count = 0;
     println!(
-        "Listening to hark events for {}, press Ctrl-C to exit.",
-        ship_config.desk
+        "Listening to hark events for {} every {} second(s), press Ctrl-C to exit.",
+        config.desk,
+        config.interval.unwrap_or(2)
     );
     loop {
         tokio::select! {
@@ -71,55 +71,62 @@ async fn main() {
                     let prev_count = count;
                     count = notifications.len();
                     if prev_count != count {
-                        let v: Value = serde_json::from_str(&notifications[count - 1]).unwrap();
-                        let mut message = String::new();
-                        let mut url = String::new();
-                        let mut msg_desk = String::new();
-                        if let Value::Object(v) = v {
-                            if let Some(Value::Object(add_yarn)) = v.get("add-yarn") {
-                                if let Some(Value::Object(yarn)) = add_yarn.get("yarn") {
-                                    if let Some(Value::Object(rope)) = yarn.get("rope") {
-                                        if let Some(Value::String(desk)) = rope.get("desk") {
-                                            if String::from(&ship_config.desk).ne(desk) {
-                                                return();
+                        let from_count = count - prev_count;
+                        let last_notifications = notifications.iter().rev().take(from_count).collect::<Vec<&String>>();
+                        let mut new_messages: Vec<Payload> = Vec::new();
+                        for n in last_notifications {
+                            let v: Value = serde_json::from_str(n).unwrap();
+
+                            let mut message = String::new();
+                            let mut url = String::new();
+                            let mut msg_desk = String::new();
+
+                            if let Value::Object(v) = v {
+                                if let Some(Value::Object(add_yarn)) = v.get("add-yarn") {
+                                    if let Some(Value::Object(yarn)) = add_yarn.get("yarn") {
+                                        if let Some(Value::Object(rope)) = yarn.get("rope") {
+                                            if let Some(Value::String(desk)) = rope.get("desk") {
+                                                if String::from(&config.desk).ne(desk) {
+                                                    return();
+                                                }
+                                                url += &config.ship_url;
+                                                url.push_str("/apps/");
+                                                url += &desk;
+                                                msg_desk += &desk;
                                             }
-                                            url += &ship_config.ship_url;
-                                            url.push_str("/apps/");
-                                            url += &desk;
-                                            msg_desk += &desk;
+                                            if let Some(Value::String(thread)) = rope.get("thread") {
+                                                url += &thread;
+                                            }
                                         }
-                                        if let Some(Value::String(thread)) = rope.get("thread") {
-                                            url += &thread;
-                                        }
-                                    }
-                                    if let Some(Value::Array(con)) = yarn.get("con") {
-                                        for c in con {
-                                            match c {
-                                                Value::String(c) => message += c,
-                                                Value::Object(c) => {
-                                                    for s in c.values() {
-                                                        if let Value::String(s) = s {
-                                                            message += s;
+                                        if let Some(Value::Array(con)) = yarn.get("con") {
+                                            for c in con {
+                                                match c {
+                                                    Value::String(c) => message += c,
+                                                    Value::Object(c) => {
+                                                        for s in c.values() {
+                                                            if let Value::String(s) = s {
+                                                                message += s;
+                                                            }
                                                         }
                                                     }
+                                                    _ => (),
                                                 }
-                                                _ => (),
                                             }
-                                        }
-                                        // Print the message
-                                        println!("{}", message);
-                                        // Send the message to the webhook
-                                        let _post = tokio::task::block_in_place(|| {
-                                            publish_webhook(&ship_config.webhook, Payload {
+                                            // Print the message
+                                            new_messages.push(Payload {
                                                 message: message,
                                                 url: url,
                                                 msg_desk: msg_desk,
-                                            })
-                                        });
+                                            });
+                                        }
                                     }
                                 }
                             }
                         }
+                        // Send the message to the webhook
+                        let _post = tokio::task::block_in_place(|| {
+                            publish_webhook(&config.webhook, new_messages)
+                        });
                     }
                 });
             }
@@ -136,7 +143,13 @@ async fn main() {
     }
 }
 
-fn publish_webhook(webhook: &std::string::String, body: Payload) -> Result<(), Box<dyn Error>> {
+fn publish_webhook(
+    webhook: &std::string::String,
+    body: Vec<Payload>,
+) -> Result<(), Box<dyn Error>> {
+    let json = serde_json::to_string(&body)?;
+    println!("{}", json);
+
     // Send a blocking request to the webhook
     let client = reqwest::blocking::Client::new();
     let res = client.post(webhook).json(&body).send();
