@@ -18,28 +18,6 @@ Example:
 
 This will result in a `POST` request to `http://httpbin.org/post` every 30 seconds with every message from the `talk` desk received within that interval.
 
-Sample payload:
-
-```json
-[
-  {
-    "message": "~dev: .",
-    "url": "http://localhost:80/apps/talk/dm/~dev",
-    "msg_desk": "talk"
-  },
-  {
-    "message": "~dev: 12345",
-    "url": "http://localhost:80/apps/talk/dm/~dev",
-    "msg_desk": "talk"
-  },
-  {
-    "message": "~dev: test",
-    "url": "http://localhost:80/apps/talk/dm/~dev",
-    "msg_desk": "talk"
-  }
-]
-```
-
 To compile:
 
 ```
