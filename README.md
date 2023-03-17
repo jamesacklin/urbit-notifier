@@ -2,8 +2,6 @@
 
 A command-line utility to forward %hark messages from a desk to a webhook URL. This runs best as a background process.
 
-At the moment, this depends on a `config.yml` file to exist in the same directory as the binary (sample provided). The values should be fairly self-explanetory.
-
 ## Usage
 
 ```
